@@ -1,0 +1,1073 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Samanda Clicker</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        /* ============ БАЗА ============ */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #090a0f;
+            color: #fff;
+        }
+
+        /* Красивый фон с неоновыми пятнами */
+        body::before {
+            content: '';
+            position: absolute;
+            top: -20%; left: -20%;
+            width: 140%; height: 140%;
+            background: 
+                radial-gradient(circle at 10% 10%, rgba(0, 150, 255, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 90% 90%, rgba(255, 0, 150, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 50% 50%, rgba(255, 200, 0, 0.05) 0%, transparent 50%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .game-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+            padding-top: calc(10px + env(safe-area-inset-top));
+            padding-bottom: calc(10px + env(safe-area-inset-bottom));
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        .game-container::-webkit-scrollbar { display: none; }
+
+        /* ============ ХЕДЕР ============ */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            flex-shrink: 0;
+            gap: 8px;
+        }
+
+        .balance-box {
+            background: rgba(20, 25, 40, 0.8);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 8px 16px;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 215, 0, 0.3);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5), inset 0 2px 5px rgba(255,255,255,0.05);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .balance-icon {
+            font-size: 24px;
+            filter: drop-shadow(0 0 10px #ffd700);
+        }
+
+        .balance-amount {
+            font-size: 22px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #fff 0%, #ffd700 50%, #ff8c00 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: 0.5px;
+        }
+
+        .balance-label {
+            font-size: 10px;
+            color: #8ba0c0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .per-click-badge {
+            background: rgba(20, 25, 40, 0.8);
+            padding: 8px 16px;
+            border-radius: 24px;
+            border: 1px solid rgba(100, 200, 255, 0.3);
+            color: #7ef0ff;
+            font-weight: 800;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+
+        /* ============ ВКЛАДКИ ============ */
+        .tabs {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            margin-bottom: 12px;
+            flex-shrink: 0;
+        }
+
+        .tab-btn {
+            background: rgba(20, 25, 40, 0.6);
+            border: 1px solid rgba(255,255,255,0.05);
+            color: #8ba0c0;
+            padding: 10px 0;
+            border-radius: 16px;
+            font-weight: 700;
+            font-size: 11px;
+            cursor: pointer;
+            transition: 0.2s;
+            text-align: center;
+            outline: none;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(145deg, #2a3a5f, #1a2540);
+            border-color: #4699ff;
+            color: #fff;
+            box-shadow: 0 0 15px rgba(70, 153, 255, 0.4);
+        }
+
+        .tab-content { display: none; flex: 1; flex-direction: column; animation: slideUp 0.3s ease; }
+        .tab-content.active { display: flex; }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ============ ГЛАВНЫЙ ЭКРАН (ТАП) ============ */
+        .click-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            flex: 1;
+            margin: 20px 0;
+        }
+
+        /* КРАСИВАЯ МОНЕТА */
+        .samanda-coin {
+            width: 240px;
+            height: 240px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            font-weight: 900;
+            color: #fff;
+            cursor: pointer;
+            transition: transform 0.1s cubic-bezier(0.34, 1.56, 0.64, 1);
+            position: relative;
+            background: linear-gradient(135deg, #ffd700, #ff8c00, #ffd700);
+            box-shadow: 
+                0 15px 35px rgba(0,0,0,0.6),
+                0 0 40px rgba(255, 215, 0, 0.4),
+                inset 0 -8px 15px rgba(139, 69, 19, 0.6),
+                inset 0 8px 15px rgba(255, 255, 255, 0.6);
+            border: 4px solid #fff7aa;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        /* Блик на монете */
+        .samanda-coin::after {
+            content: '';
+            position: absolute;
+            top: 10%; left: 20%;
+            width: 30%; height: 30%;
+            background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, transparent 70%);
+            border-radius: 50%;
+            pointer-events: none;
+        }
+
+        .samanda-coin:active {
+            transform: scale(0.9) rotate(5deg);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.6), 0 0 20px rgba(255, 215, 0, 0.6);
+        }
+
+        /* ============ СТАТИСТИКА ============ */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .stat-card {
+            background: rgba(20, 25, 40, 0.6);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 12px;
+            text-align: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: #8ba0c0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 4px;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: 800;
+            color: #fff;
+        }
+
+        /* ============ КАРТОЧКИ МАШИН (УЛУЧШЕНИЯ) ============ */
+        .cars-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 12px;
+            padding-bottom: 20px;
+        }
+
+        .car-card {
+            background: linear-gradient(145deg, rgba(30, 35, 55, 0.9), rgba(15, 20, 35, 0.9));
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 24px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+        }
+
+        /* Цветные полоски слева в зависимости от редкости машины */
+        .car-card::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0; bottom: 0;
+            width: 6px;
+            background: #555;
+        }
+        .car-card.tier-1::before { background: #8ba0c0; }
+        .car-card.tier-2::before { background: #4caf50; }
+        .car-card.tier-3::before { background: #2196f3; }
+        .car-card.tier-4::before { background: #9c27b0; }
+        .car-card.tier-5::before { background: #ff9800; }
+        .car-card.tier-6::before { background: #f44336; } /* Гиперкар */
+
+        .car-image {
+            font-size: 50px;
+            width: 70px;
+            height: 70px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.3);
+            border-radius: 16px;
+            flex-shrink: 0;
+            filter: drop-shadow(0 5px 10px rgba(0,0,0,0.5));
+        }
+
+        .car-info { flex: 1; }
+        .car-name { font-size: 16px; font-weight: 800; color: #fff; margin-bottom: 2px; }
+        .car-desc { font-size: 12px; color: #a0b0c0; margin-bottom: 6px; }
+        .car-level { font-size: 11px; color: #ffd700; font-weight: 700; }
+        
+        .buy-btn {
+            background: linear-gradient(145deg, #2196f3, #1565c0);
+            border: none;
+            color: #fff;
+            font-weight: 800;
+            font-size: 13px;
+            padding: 10px 16px;
+            border-radius: 16px;
+            cursor: pointer;
+            box-shadow: 0 4px 10px rgba(33, 150, 243, 0.4);
+            transition: 0.1s;
+            text-align: center;
+        }
+        .buy-btn:active { transform: translateY(2px); box-shadow: 0 2px 5px rgba(33, 150, 243, 0.4); }
+        .buy-btn:disabled { opacity: 0.5; filter: grayscale(1); box-shadow: none; }
+
+        /* ============ КЕЙСЫ ============ */
+        .cases-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .case-card {
+            background: rgba(20, 25, 40, 0.8);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 24px;
+            padding: 20px 10px;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .case-card:active { transform: scale(0.96); }
+        .case-card.common { border-color: rgba(139, 160, 192, 0.5); }
+        .case-card.rare { border-color: rgba(33, 150, 243, 0.5); box-shadow: 0 0 15px rgba(33, 150, 243, 0.2); }
+        .case-card.epic { border-color: rgba(156, 39, 176, 0.5); box-shadow: 0 0 15px rgba(156, 39, 176, 0.2); }
+        .case-card.legendary { border-color: rgba(255, 152, 0, 0.5); box-shadow: 0 0 20px rgba(255, 152, 0, 0.3); }
+        
+        .case-icon { font-size: 50px; margin-bottom: 10px; filter: drop-shadow(0 5px 10px rgba(0,0,0,0.5)); }
+        .case-name { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+        .case-price { font-size: 12px; color: #ffd700; font-weight: 700; }
+
+        /* ============ АНИМАЦИЯ КЕЙСА (3D) ============ */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(5, 10, 20, 0.95);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 15px;
+        }
+        .modal-overlay.show { display: flex; }
+        
+        .modal-box {
+            background: linear-gradient(145deg, #1a2540, #0b1220);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 32px;
+            padding: 24px 20px;
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
+            position: relative;
+        }
+
+        /* Трекер кейса */
+        .case-viewport {
+            width: 100%;
+            height: 110px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            margin: 20px 0;
+            border: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .case-pointer {
+            position: absolute;
+            top: 0; left: 50%;
+            transform: translateX(-50%);
+            width: 0; height: 0;
+            border-left: 12px solid transparent;
+            border-right: 12px solid transparent;
+            border-top: 18px solid #fff;
+            z-index: 10;
+            filter: drop-shadow(0 0 5px #fff);
+        }
+
+        .case-track {
+            display: flex;
+            gap: 10px;
+            padding: 0 10px;
+            height: 100%;
+            align-items: center;
+            transition: transform 4s cubic-bezier(0.1, 0.7, 0.1, 1);
+        }
+
+        .case-item {
+            flex-shrink: 0;
+            width: 90px;
+            height: 90px;
+            border-radius: 16px;
+            background: linear-gradient(145deg, #2a3a5f, #1a2540);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid rgba(255,255,255,0.1);
+            font-weight: 800;
+            font-size: 12px;
+            color: #fff;
+        }
+        .case-item .icon { font-size: 30px; margin-bottom: 4px; }
+        .case-item.rarity-empty { border-color: #555; filter: grayscale(1); }
+        .case-item.rarity-common { border-color: #8ba0c0; }
+        .case-item.rarity-rare { border-color: #2196f3; box-shadow: 0 0 15px #2196f3; }
+        .case-item.rarity-epic { border-color: #9c27b0; box-shadow: 0 0 15px #9c27b0; }
+        .case-item.rarity-legendary { border-color: #ff9800; box-shadow: 0 0 20px #ff9800; }
+
+        /* ============ РУЛЕТКА ============ */
+        .roulette-viewport {
+            width: 100%;
+            height: 100px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 20px;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .roulette-pointer {
+            position: absolute;
+            top: 0; left: 50%;
+            transform: translateX(-50%);
+            width: 0; height: 0;
+            border-left: 14px solid transparent;
+            border-right: 14px solid transparent;
+            border-top: 20px solid #ffd700;
+            z-index: 10;
+            filter: drop-shadow(0 0 8px #ffd700);
+        }
+
+        .roulette-track {
+            display: flex;
+            gap: 10px;
+            padding: 0 10px;
+            height: 100%;
+            align-items: center;
+            transition: transform 4s cubic-bezier(0.1, 0.7, 0.1, 1);
+        }
+
+        /* ============ МОДАЛКА РЕЗУЛЬТАТА ============ */
+        .result-icon { font-size: 70px; margin-bottom: 10px; filter: drop-shadow(0 0 20px currentColor); }
+        .result-title { font-size: 24px; font-weight: 900; color: #fff; margin-bottom: 8px; }
+        .result-desc { font-size: 14px; color: #8ba0c0; margin-bottom: 15px; }
+        .result-reward { 
+            background: rgba(255, 215, 0, 0.1); 
+            border: 1px solid #ffd700; 
+            border-radius: 16px; 
+            padding: 15px; 
+            color: #ffd700; 
+            font-weight: 900; 
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .close-btn {
+            background: #2196f3;
+            border: none;
+            color: #fff;
+            font-weight: 800;
+            font-size: 15px;
+            padding: 14px;
+            border-radius: 16px;
+            cursor: pointer;
+            width: 100%;
+        }
+
+        /* ============ ДОСТИЖЕНИЯ ============ */
+        .ach-card {
+            background: rgba(20, 25, 40, 0.6);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 16px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+            opacity: 0.5;
+        }
+        .ach-card.unlocked {
+            opacity: 1;
+            border-color: rgba(255, 215, 0, 0.3);
+            background: rgba(255, 215, 0, 0.05);
+        }
+        .ach-icon { font-size: 24px; }
+        .ach-info { flex: 1; }
+        .ach-name { font-size: 14px; font-weight: 700; color: #fff; }
+        .ach-desc { font-size: 11px; color: #8ba0c0; }
+
+        /* Тост */
+        .toast {
+            position: fixed;
+            top: 20px; left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: #2196f3;
+            color: #fff;
+            padding: 12px 24px;
+            border-radius: 30px;
+            font-weight: 700;
+            font-size: 14px;
+            z-index: 9999;
+            transition: transform 0.3s ease;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+
+    </style>
+</head>
+<body>
+<div class="game-container">
+    <!-- HEADER -->
+    <div class="header">
+        <div class="balance-box">
+            <div class="balance-icon">🪙</div>
+            <div>
+                <div class="balance-label">SAMANDA</div>
+                <div class="balance-amount" id="balanceDisplay">0</div>
+            </div>
+        </div>
+        <div class="per-click-badge">⚡ <span id="perClickDisplay">1</span></div>
+    </div>
+
+    <!-- TABS -->
+    <div class="tabs">
+        <button class="tab-btn active" data-tab="clicker">Тап</button>
+        <button class="tab-btn" data-tab="upgrades">Гараж</button>
+        <button class="tab-btn" data-tab="cases">Кейсы</button>
+        <button class="tab-btn" data-tab="roulette">Рулетка</button>
+        <button class="tab-btn" data-tab="daily">Бонус</button>
+        <button class="tab-btn" data-tab="achievements">Награды</button>
+    </div>
+
+    <!-- CLICKER TAB -->
+    <div class="tab-content active" id="tab-clicker">
+        <div class="click-area">
+            <div class="samanda-coin" id="coinButton">S</div>
+            <div style="margin-top:20px; color:#8ba0c0; font-weight:600; letter-spacing:1px;">ТАПАЙ И ЗАРАБАТЫВАЙ</div>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">В СЕКУНДУ</div>
+                <div class="stat-value" id="incomePerSecDisplay" style="color:#7ef0ff">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">ВСЕГО ТАПОВ</div>
+                <div class="stat-value" id="totalTapsDisplay">0</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- UPGRADES TAB (CARS) -->
+    <div class="tab-content" id="tab-upgrades">
+        <div class="cars-grid" id="carsGrid">
+            <!-- Карточки машин будут добавлены через JS -->
+        </div>
+    </div>
+
+    <!-- CASES TAB -->
+    <div class="tab-content" id="tab-cases">
+        <div class="cases-grid" id="casesGrid">
+            <!-- Кейсы через JS -->
+        </div>
+    </div>
+
+    <!-- ROULETTE TAB -->
+    <div class="tab-content" id="tab-roulette">
+        <div style="background:rgba(20,25,40,0.6); border-radius:24px; padding:20px;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:15px; color:#fff; font-weight:700;">
+                <span>🎰 Рулетка удачи</span>
+                <span style="color:#ffd700;">Цена: <span id="roulettePrice">50</span></span>
+            </div>
+            <div class="roulette-viewport">
+                <div class="roulette-pointer"></div>
+                <div class="roulette-track" id="rouletteTrack"></div>
+            </div>
+            <button class="buy-btn" style="width:100%; padding:16px; font-size:16px; background:linear-gradient(145deg, #ff9800, #e65100);" id="spinBtn">КРУТИТЬ</button>
+        </div>
+    </div>
+
+    <!-- DAILY TAB -->
+    <div class="tab-content" id="tab-daily">
+        <div style="background:rgba(20,25,40,0.6); border-radius:24px; padding:30px 20px; text-align:center;">
+            <div style="font-size:60px; margin-bottom:15px; filter:drop-shadow(0 0 20px #9c27b0);">🎁</div>
+            <div style="font-size:22px; font-weight:900; color:#fff; margin-bottom:10px;">ЕЖЕДНЕВНЫЙ БОНУС</div>
+            <div id="dailyDesc" style="font-size:14px; color:#8ba0c0; margin-bottom:20px;">Заходи каждый день!</div>
+            <button class="buy-btn" style="width:100%; padding:16px; font-size:16px; background:linear-gradient(145deg, #9c27b0, #6a1b9a);" id="dailyBtn">ЗАБРАТЬ</button>
+        </div>
+    </div>
+
+    <!-- ACHIEVEMENTS TAB -->
+    <div class="tab-content" id="tab-achievements">
+        <div id="achievementsList"></div>
+    </div>
+</div>
+
+<!-- MODAL ДЛЯ КЕЙСОВ И РУЛЕТКИ -->
+<div class="modal-overlay" id="modalOverlay">
+    <div class="modal-box" id="modalBox">
+        <!-- Содержимое меняется через JS -->
+    </div>
+</div>
+
+<script>
+(function () {
+    'use strict';
+
+    const tg = window.Telegram?.WebApp;
+    if (tg) { tg.ready(); tg.expand(); }
+    const CLOUD_AVAILABLE = !!(tg && tg.CloudStorage);
+    const SAVE_KEY = 'samanda_save_v4';
+
+    // СОСТОЯНИЕ
+    let balance = 0;
+    let perClick = 1;
+    let idleIncome = 0;
+    let autoClickPerSec = 0;
+    let totalTaps = 0;
+    let lastDailyClaim = 0;
+    let dailyStreak = 0;
+    let achievementsUnlocked = {};
+    
+    // Уровни машин (0 - ничего не куплено)
+    let carLevels = { lada: 0, golf: 0, bmw: 0, porsche: 0, lambo: 0, hyper: 0 };
+
+    // ============ МАШИНЫ (УЛУЧШЕНИЯ) ============
+    const CARS = [
+        { id: 'lada', name: 'Лада Веста', icon: '🚗', desc: '+1 к силе тапа', baseCost: 100, tier: 1, costMult: 1.5, type: 'click', val: 1 },
+        { id: 'golf', name: 'VW Golf GTI', icon: '🚙', desc: '+5 к силе тапа', baseCost: 1000, tier: 2, costMult: 1.6, type: 'click', val: 5 },
+        { id: 'bmw', name: 'BMW M5', icon: '🏎️', desc: '+0.5 / сек пассивно', baseCost: 5000, tier: 3, costMult: 1.7, type: 'idle', val: 0.5 },
+        { id: 'porsche', name: 'Porsche 911', icon: '🚕', desc: '+25 к силе тапа', baseCost: 25000, tier: 4, costMult: 1.8, type: 'click', val: 25 },
+        { id: 'lambo', name: 'Lamborghini', icon: '🏎️', desc: '+5 / сек пассивно', baseCost: 100000, tier: 5, costMult: 1.9, type: 'idle', val: 5 },
+        { id: 'hyper', name: 'Bugatti Chiron', icon: '🚀', desc: '+100 к силе, +10/сек', baseCost: 500000, tier: 6, costMult: 2.0, type: 'hybrid', val: 100, idleVal: 10 }
+    ];
+
+    // ============ КЕЙСЫ ============
+    const CASES = [
+        { id: 'common', name: 'Обычный', icon: '📦', price: 100, rarity: 'common', chance: 40 },
+        { id: 'rare', name: 'Редкий', icon: '💎', price: 1000, rarity: 'rare', chance: 50 },
+        { id: 'epic', name: 'Эпический', icon: '🔮', price: 5000, rarity: 'epic', chance: 60 },
+        { id: 'legendary', name: 'Легендарный', icon: '👑', price: 25000, rarity: 'legendary', chance: 70 }
+    ];
+
+    const CASE_LOOT = {
+        common: [{ type: 'coins', min: 50, max: 200 }, { type: 'perClick', val: 1 }, { type: 'empty' }],
+        rare: [{ type: 'coins', min: 500, max: 1500 }, { type: 'perClick', val: 5 }, { type: 'idle', val: 1 }, { type: 'empty' }],
+        epic: [{ type: 'coins', min: 2000, max: 6000 }, { type: 'perClick', val: 20 }, { type: 'idle', val: 5 }, { type: 'empty' }],
+        legendary: [{ type: 'coins', min: 10000, max: 30000 }, { type: 'perClick', val: 100 }, { type: 'idle', val: 25 }, { type: 'empty' }]
+    };
+
+    // ============ ДОСТИЖЕНИЯ ============
+    const ACHIEVEMENTS = [
+        { id: 'first_tap', name: 'Первый тап', desc: 'Сделай 1 тап', icon: '👆', check: () => totalTaps >= 1 },
+        { id: 'taps_500', name: 'Тапальщик', desc: 'Сделай 500 тапов', icon: '✋', check: () => totalTaps >= 500 },
+        { id: 'balance_10k', name: 'Богач', desc: 'Накопи 10 000 монет', icon: '💰', check: () => balance >= 10000 },
+        { id: 'first_case', name: 'Открыватель', desc: 'Открой первый кейс', icon: '📦', check: () => achievementsUnlocked['case_opened'] },
+        { id: 'first_car', name: 'Автолюбитель', desc: 'Купи первую машину', icon: '🚗', check: () => Object.values(carLevels).some(v => v > 0) }
+    ];
+
+    const $ = (id) => document.getElementById(id);
+
+    function formatNumber(num) {
+        if (num >= 1e12) return (num / 1e12).toFixed(2) + 'T';
+        if (num >= 1e9) return (num / 1e9).toFixed(2) + 'B';
+        if (num >= 1e6) return (num / 1e6).toFixed(2) + 'M';
+        if (num >= 1e4) return (num / 1e3).toFixed(1) + 'K';
+        return Math.floor(num).toString();
+    }
+
+    function getCarCost(car) {
+        return Math.floor(car.baseCost * Math.pow(car.costMult, carLevels[car.id]));
+    }
+
+    function getIncomePerSec() {
+        return idleIncome + autoClickPerSec * perClick;
+    }
+
+    function updateUI() {
+        $('balanceDisplay').textContent = formatNumber(balance);
+        $('perClickDisplay').textContent = formatNumber(perClick);
+        $('incomePerSecDisplay').textContent = formatNumber(getIncomePerSec());
+        $('totalTapsDisplay').textContent = formatNumber(totalTaps);
+        $('roulettePrice').textContent = formatNumber(100 + totalTaps * 2);
+
+        renderCars();
+        updateDailyUI();
+        updateAchievementsUI();
+    }
+
+    function showToast(text) {
+        let t = document.getElementById('gameToast');
+        if (!t) {
+            t = document.createElement('div');
+            t.id = 'gameToast'; t.className = 'toast';
+            document.body.appendChild(t);
+        }
+        t.textContent = text;
+        void t.offsetWidth;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    // ============ ВКЛАДКИ ============
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            btn.classList.add('active');
+            $('tab-' + btn.dataset.tab).classList.add('active');
+            updateUI();
+        });
+    });
+
+    // ============ ТАП ============
+    $('coinButton').addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        balance += perClick;
+        totalTaps++;
+        updateUI();
+        const coin = $('coinButton');
+        coin.style.transform = 'scale(0.9) rotate(5deg)';
+        setTimeout(() => { coin.style.transform = ''; }, 80);
+    });
+
+    // ============ МАШИНЫ ============
+    function renderCars() {
+        const grid = $('carsGrid');
+        grid.innerHTML = '';
+        CARS.forEach(car => {
+            const level = carLevels[car.id];
+            const cost = getCarCost(car);
+            const canAfford = balance >= cost;
+
+            const el = document.createElement('div');
+            el.className = `car-card tier-${car.tier}`;
+            el.innerHTML = `
+                <div class="car-image">${car.icon}</div>
+                <div class="car-info">
+                    <div class="car-name">${car.name}</div>
+                    <div class="car-desc">${car.desc}</div>
+                    <div class="car-level">Уровень: ${level} ${level > 0 ? '✅' : ''}</div>
+                </div>
+                <button class="buy-btn" data-id="${car.id}" ${!canAfford ? 'disabled' : ''}>
+                    ${formatNumber(cost)} 🪙
+                </button>
+            `;
+            grid.appendChild(el);
+        });
+
+        grid.querySelectorAll('.buy-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const carId = btn.dataset.id;
+                const car = CARS.find(c => c.id === carId);
+                const cost = getCarCost(car);
+                if (balance >= cost) {
+                    balance -= cost;
+                    carLevels[car.id]++;
+                    
+                    if (car.type === 'click' || car.type === 'hybrid') perClick += car.val;
+                    if (car.type === 'idle' || car.type === 'hybrid') idleIncome += car.val || car.idleVal;
+
+                    showToast(`✅ Куплено: ${car.name}`);
+                    updateUI();
+                    saveGame();
+                }
+            });
+        });
+    }
+
+    // ============ КЕЙСЫ ============
+    function renderCases() {
+        const grid = $('casesGrid');
+        grid.innerHTML = '';
+        CASES.forEach(c => {
+            const el = document.createElement('div');
+            el.className = `case-card ${c.rarity}`;
+            el.innerHTML = `
+                <div class="case-icon">${c.icon}</div>
+                <div class="case-name">${c.name}</div>
+                <div class="case-price">${formatNumber(c.price)} 🪙</div>
+            `;
+            el.addEventListener('click', () => openCase(c));
+            grid.appendChild(el);
+        });
+    }
+
+    function openCase(c) {
+        if (balance < c.price) { showToast('❌ Недостаточно монет!'); return; }
+        balance -= c.price;
+        updateUI();
+        saveGame();
+
+        // Создаем модалку
+        $('modalOverlay').classList.add('show');
+        $('modalBox').innerHTML = `
+            <div style="font-size:20px; font-weight:800; margin-bottom:10px;">Открываем ${c.name}...</div>
+            <div class="case-viewport">
+                <div class="case-pointer"></div>
+                <div class="case-track" id="animTrack"></div>
+            </div>
+        `;
+
+        const track = $('animTrack');
+        const lootTable = CASE_LOOT[c.id];
+        
+        // Определяем выигрыш
+        const isWin = Math.random() * 100 < c.chance;
+        const winner = isWin 
+            ? lootTable.filter(l => l.type !== 'empty')[Math.floor(Math.random() * lootTable.filter(l => l.type !== 'empty').length)]
+            : { type: 'empty' };
+
+        // Заполняем трек (20 элементов, победитель на 17-м месте)
+        for (let i = 0; i < 20; i++) {
+            const item = (i === 17) ? winner : lootTable[Math.floor(Math.random() * lootTable.length)];
+            const el = document.createElement('div');
+            
+            let icon = '💨', text = 'Пусто', rarity = 'empty';
+            if (item.type === 'coins') { icon = '🪙'; text = `${item.min}-${item.max}`; rarity = 'common'; }
+            if (item.type === 'perClick') { icon = '⚡'; text = `+${item.val} тап`; rarity = 'rare'; }
+            if (item.type === 'idle') { icon = '🌙'; text = `+${item.val}/сек`; rarity = 'epic'; }
+
+            el.className = `case-item rarity-${rarity}`;
+            el.innerHTML = `<div class="icon">${icon}</div><div>${text}</div>`;
+            track.appendChild(el);
+        }
+
+        // Запускаем анимацию
+        void track.offsetWidth;
+        const viewportWidth = track.parentElement.clientWidth;
+        const itemWidth = 90 + 10; // 90 ширина + 10 gap
+        const centerOffset = (viewportWidth / 2) - 45;
+        const randomOffset = (Math.random() * 40) - 20;
+        
+        track.style.transform = `translateX(-${(17 * itemWidth) - centerOffset + randomOffset}px)`;
+
+        // Результат через 4 секунды
+        setTimeout(() => {
+            let rewardText = '';
+            let resultIcon = '🎁';
+            let resultColor = '#ffd700';
+
+            if (winner.type === 'empty') {
+                rewardText = 'ПУСТО';
+                resultIcon = '💨';
+                resultColor = '#8ba0c0';
+            } else if (winner.type === 'coins') {
+                const amt = Math.floor(winner.min + Math.random() * (winner.max - winner.min));
+                balance += amt;
+                rewardText = `+${formatNumber(amt)} SAMANDA`;
+            } else if (winner.type === 'perClick') {
+                perClick += winner.val;
+                rewardText = `+${winner.val} к тапу`;
+                resultIcon = '⚡';
+            } else if (winner.type === 'idle') {
+                idleIncome += winner.val;
+                rewardText = `+${winner.val} в сек`;
+                resultIcon = '🌙';
+            }
+
+            achievementsUnlocked['case_opened'] = true;
+            updateUI(); saveGame();
+
+            // Показываем результат
+            $('modalBox').innerHTML = `
+                <div class="result-icon" style="color:${resultColor}">${resultIcon}</div>
+                <div class="result-title">${winner.type === 'empty' ? 'Не повезло' : 'Поздравляем!'}</div>
+                <div class="result-desc">${winner.type === 'empty' ? 'В следующий раз повезет' : 'Ты выиграл:'}</div>
+                <div class="result-reward" style="color:${resultColor}; border-color:${resultColor}">${rewardText}</div>
+                <button class="close-btn" onclick="document.getElementById('modalOverlay').classList.remove('show')">ЗАБРАТЬ</button>
+            `;
+        }, 4200);
+    }
+
+    // ============ РУЛЕТКА ============
+    const ROULETTE_PRIZES = [
+        { icon: '🪙', label: '50', coins: 50, rarity: 'common' },
+        { icon: '🪙', label: '100', coins: 100, rarity: 'common' },
+        { icon: '⚡', label: '+5', perClick: 5, rarity: 'rare' },
+        { icon: '🌙', label: '+2', idle: 2, rarity: 'epic' },
+        { icon: '👑', label: '5000', coins: 5000, rarity: 'legendary' }
+    ];
+
+    function initRoulette() {
+        const track = $('rouletteTrack');
+        track.innerHTML = '';
+        for (let i = 0; i < 20; i++) {
+            const p = ROULETTE_PRIZES[Math.floor(Math.random() * ROULETTE_PRIZES.length)];
+            const el = document.createElement('div');
+            el.className = `case-item rarity-${p.rarity}`;
+            el.innerHTML = `<div class="icon">${p.icon}</div><div>${p.label}</div>`;
+            track.appendChild(el);
+        }
+    }
+
+    $('spinBtn').addEventListener('click', () => {
+        const cost = 100 + totalTaps * 2;
+        if (balance < cost) { showToast('❌ Недостаточно монет!'); return; }
+        
+        balance -= cost;
+        $('spinBtn').disabled = true;
+
+        const track = $('rouletteTrack');
+        track.style.transition = 'none';
+        track.style.transform = 'translateX(0)';
+        track.innerHTML = '';
+
+        const winner = ROULETTE_PRIZES[Math.floor(Math.random() * ROULETTE_PRIZES.length)];
+        for (let i = 0; i < 20; i++) {
+            const p = (i === 15) ? winner : ROULETTE_PRIZES[Math.floor(Math.random() * ROULETTE_PRIZES.length)];
+            const el = document.createElement('div');
+            el.className = `case-item rarity-${p.rarity}`;
+            el.innerHTML = `<div class="icon">${p.icon}</div><div>${p.label}</div>`;
+            track.appendChild(el);
+        }
+
+        void track.offsetWidth;
+        track.style.transition = 'transform 4s cubic-bezier(0.1, 0.7, 0.1, 1)';
+        
+        const viewportWidth = track.parentElement.clientWidth;
+        const itemWidth = 90 + 10;
+        const centerOffset = (viewportWidth / 2) - 45;
+        track.style.transform = `translateX(-${(15 * itemWidth) - centerOffset + (Math.random() * 40 - 20)}px)`;
+
+        setTimeout(() => {
+            let rewardText = '';
+            if (winner.coins) { balance += winner.coins; rewardText = `+${winner.coins} монет`; }
+            if (winner.perClick) { perClick += winner.perClick; rewardText = `+${winner.perClick} к тапу`; }
+            if (winner.idle) { idleIncome += winner.idle; rewardText = `+${winner.idle} в сек`; }
+
+            $('modalOverlay').classList.add('show');
+            $('modalBox').innerHTML = `
+                <div class="result-icon">${winner.icon}</div>
+                <div class="result-title">Выигрыш!</div>
+                <div class="result-desc">Рулетка остановилась на:</div>
+                <div class="result-reward">${rewardText}</div>
+                <button class="close-btn" onclick="document.getElementById('modalOverlay').classList.remove('show')">ЗАБРАТЬ</button>
+            `;
+
+            $('spinBtn').disabled = false;
+            updateUI(); saveGame();
+        }, 4200);
+    });
+
+    // ============ ЕЖЕДНЕВНЫЙ БОНУС ============
+    function canClaimDaily() {
+        return Date.now() - lastDailyClaim >= 24 * 60 * 60 * 1000;
+    }
+
+    function updateDailyUI() {
+        const btn = $('dailyBtn');
+        const desc = $('dailyDesc');
+        if (canClaimDaily()) {
+            btn.disabled = false;
+            btn.textContent = 'ЗАБРАТЬ БОНУС';
+            desc.textContent = `Твой бонус: ${formatNumber(500 + dailyStreak * 250)} монет!`;
+        } else {
+            btn.disabled = true;
+            const hrs = Math.ceil((24 * 60 * 60 * 1000 - (Date.now() - lastDailyClaim)) / (3600 * 1000));
+            btn.textContent = `ЖДАТЬ ${hrs} ЧАС(А)`;
+            desc.textContent = `Возвращайся позже! Серия: ${dailyStreak}`;
+        }
+    }
+
+    $('dailyBtn').addEventListener('click', () => {
+        if (!canClaimDaily()) return;
+        const reward = 500 + dailyStreak * 250;
+        balance += reward;
+        lastDailyClaim = Date.now();
+        dailyStreak++;
+        showToast(`🎁 Бонус: +${reward} монет!`);
+        updateUI(); saveGame();
+    });
+
+    // ============ ДОСТИЖЕНИЯ ============
+    function updateAchievementsUI() {
+        const list = $('achievementsList');
+        list.innerHTML = '';
+        ACHIEVEMENTS.forEach(ach => {
+            const unlocked = achievementsUnlocked[ach.id] || ach.check();
+            if (unlocked) achievementsUnlocked[ach.id] = true;
+            
+            const el = document.createElement('div');
+            el.className = `ach-card ${unlocked ? 'unlocked' : ''}`;
+            el.innerHTML = `
+                <div class="ach-icon">${ach.icon}</div>
+                <div class="ach-info">
+                    <div class="ach-name">${ach.name}</div>
+                    <div class="ach-desc">${ach.desc}</div>
+                </div>
+                ${unlocked ? '<div style="color:#4ade80; font-weight:900;">✓</div>' : ''}
+            `;
+            list.appendChild(el);
+        });
+    }
+
+    // ============ СОХРАНЕНИЕ ============
+    function getSaveObject() {
+        return {
+            balance, perClick, idleIncome, autoClickPerSec, totalTaps,
+            carLevels, lastDailyClaim, dailyStreak, achievementsUnlocked,
+            lastSaved: Date.now()
+        };
+    }
+
+    function applySaveObject(data) {
+        if (!data) return;
+        balance = Number(data.balance) || 0;
+        perClick = Number(data.perClick) || 1;
+        idleIncome = Number(data.idleIncome) || 0;
+        autoClickPerSec = Number(data.autoClickPerSec) || 0;
+        totalTaps = Number(data.totalTaps) || 0;
+        carLevels = data.carLevels || { lada: 0, golf: 0, bmw: 0, porsche: 0, lambo: 0, hyper: 0 };
+        lastDailyClaim = Number(data.lastDailyClaim) || 0;
+        dailyStreak = Number(data.dailyStreak) || 0;
+        achievementsUnlocked = data.achievementsUnlocked || {};
+        
+        // Офлайн доход
+        const lastSaved = Number(data.lastSaved) || Date.now();
+        const secOffline = Math.min(Math.max(0, Math.floor((Date.now() - lastSaved) / 1000)), 8 * 3600);
+        const offlineEarn = secOffline * idleIncome;
+        if (offlineEarn > 0) {
+            balance += offlineEarn;
+            setTimeout(() => showToast(`🌙 Офлайн: +${formatNumber(offlineEarn)}`), 1000);
+        }
+    }
+
+    function saveGame() {
+        try { localStorage.setItem(SAVE_KEY, JSON.stringify(getSaveObject())); } catch (e) {}
+        if (CLOUD_AVAILABLE) tg.CloudStorage.setItem(SAVE_KEY, JSON.stringify(getSaveObject()));
+    }
+
+    function loadGame(cb) {
+        if (CLOUD_AVAILABLE) {
+            tg.CloudStorage.getItem(SAVE_KEY, (err, value) => {
+                if (!err && value) {
+                    try { applySaveObject(JSON.parse(value)); if (cb) cb(); return; } catch (e) {}
+                }
+                try {
+                    const raw = localStorage.getItem(SAVE_KEY);
+                    if (raw) applySaveObject(JSON.parse(raw));
+                } catch (e) {}
+                if (cb) cb();
+            });
+        } else {
+            try {
+                const raw = localStorage.getItem(SAVE_KEY);
+                if (raw) applySaveObject(JSON.parse(raw));
+            } catch (e) {}
+            if (cb) cb();
+        }
+    }
+
+    // ============ ЦИКЛ ============
+    setInterval(() => {
+        if (idleIncome > 0) balance += idleIncome;
+        if (autoClickPerSec > 0) {
+            balance += autoClickPerSec * perClick;
+            totalTaps += autoClickPerSec;
+        }
+        updateUI();
+    }, 1000);
+
+    // СТАРТ
+    initRoulette();
+    renderCases();
+    loadGame(() => updateUI());
+    setInterval(saveGame, 5000);
+})();
+</script>
+</body>
+</html>
